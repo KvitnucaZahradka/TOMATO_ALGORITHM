@@ -284,7 +284,7 @@ class ClusterGenerator:
     def generate(self, structure: str) -> np.ndarray:
 
         assert structure in ClusterGenerator._allowed_structures, f'Your structure {structure} ' \
-            f'is not among the allowed strictures'
+            f'is not among the allowed structures'
 
         if structure == 'anisotropy':
 
