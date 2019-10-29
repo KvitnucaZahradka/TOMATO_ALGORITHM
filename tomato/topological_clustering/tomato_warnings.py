@@ -12,3 +12,6 @@ import warnings
 
 def user_is_using_default_distance_function():
     warnings.warn('User is using the default distance function: `scipy.spatial.distance.euclidean`!')
+
+def operation_might_take_long_to_finish(operation: str):
+    warnings.warn(f'This operation `{operation}` might take significant time and resources to finish!')

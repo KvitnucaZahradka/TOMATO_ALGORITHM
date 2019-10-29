@@ -21,14 +21,244 @@ from sklearn.neighbors import BallTree, NearestNeighbors
 import tomato_utils as tu
 import tomato_warnings as tw
 
-from itertools import tee
-from typing import Iterator, Tuple, Set, Union, Callable, List
+from itertools import tee, repeat
+from typing import Iterator, Tuple, Set, Union, Callable, List, Dict
+
+from functools import reduce
 
 '''
 
 C L A S S E S
 
 '''
+
+
+class DensityEstimators:
+    """This class implements one particular density estimator
+
+    Attributes
+    ----------
+    density_estimators: Tuple[str]
+        is a tuple of restricted strings. The restricted string might have the following values:
+        - `kde_gauss_grid_search`
+        - `kde_gauss_logarithmic_gauss_grid_search`
+        - `kde_tophat`
+        - `kde_logarithmic_tophat`
+        - `kde_logarithmic_knn`
+        For further explanations and descriptions of above estimator, see `Notes` in this docstring.
+
+    Methods
+    -------
+
+    Notes
+    -----
+    - `kde_gauss_grid_search`:
+    - `kde_gauss_logarithmic_gauss_grid_search`:
+    - `kde_tophat`:
+    - `kde_logarithmic_tophat`:
+    - `kde_logarithmic_knn`:
+
+
+    """
+
+    # -- defaults --
+    _allowed_density_estimators = {'kde_gauss_grid_search', 'kde_logarithmic_gauss_grid_search',
+                                   'kde_tophat', 'kde_logarithmic_tophat', 'kde_logarithmic_knn'}
+
+    # -- constructor --
+    def __init__(self, density_estimators: Dict[str, dict]):
+
+        self._density_estimators = None
+
+        # @property handling
+        self.__density_estimators = density_estimators
+
+
+    '''
+    HELPER FUNCTIONS
+    '''
+    @property
+    def __density_estimator(self) -> Union[Dict[str, dict], None]:
+        """
+
+        Returns
+        -------
+
+        """
+        return self._density_estimators
+
+    @__density_estimator.setter
+    def __density_estimator(self, density_estimators: Dict[str, dict]):
+        """
+
+        Parameters
+        ----------
+        density_estimators
+
+        Returns
+        -------
+
+        """
+        assert isinstance(density_estimators, dict)
+
+        _check_set = set(density_estimators).difference(DensityEstimators._allowed_density_estimators)
+        assert not _check_set, f'The following names in `density_estimators` ' \
+            f'are not allowed: {_check_set}!'
+
+        self._density_estimators = density_estimators
+
+    def kde_gauss_grid_search(self, X: np.ndarray, **kwargs) -> np.ndarray:
+        """This defines one particular Morse function.
+
+        Parameters
+        ----------
+        X: np.ndarray
+
+        **cross_validation: int
+            -- default -- is 2
+
+        **bandwidth: int
+            -- default -- np.linspace(0.1, 1.0, 30)
+
+        Returns
+        -------
+        np.ndarray
+
+        """
+        # -- defaults --
+        _cross_validation = kwargs.get('cross_validation', 2)
+        _bandwidth = kwargs.get('bandwidth', np.linspace(0.1, 1.0, 30))
+
+        return tu.evaluate_kde_estimator(tu.fit_gaussian_kde_estimator(X, cross_validation=_cross_validation,
+                                                                       bandwidth=_bandwidth), X)
+
+    def kde_logarithmic_gauss_grid_search(self,  X: np.ndarray, **kwargs) -> np.ndarray:
+        """
+
+        Parameters
+        ----------
+        X: np.ndarray
+
+        **cross_validation: int
+            -- default -- is 2
+
+        **bandwidth: int
+            -- default -- np.linspace(0.1, 1.0, 30)
+
+        Returns
+        -------
+        np.ndarray
+
+
+        """
+        # -- defaults --
+        _cross_validation = kwargs.get('cross_validation', 2)
+        _bandwidth = kwargs.get('bandwidth', np.linspace(0.1, 1.0, 30))
+
+        _densities = tu.evaluate_kde_estimator(tu.fit_gaussian_kde_estimator(X, cross_validation=_cross_validation,
+                                                                             bandwidth=_bandwidth), X, False)
+        # you must shift quasi - densities to be nonzero (for ToMATo to work correctly.)
+        return _densities + np.abs(np.min((0.0, np.min(_densities))))
+
+    def kde_tophat(self, X: np.ndarray, **kwargs) -> np.ndarray:
+        """
+
+        Parameters
+        ----------
+        X
+        kwargs
+
+        Returns
+        -------
+
+        """
+        return tu.evaluate_kde_estimator(tu.fit_single_kde_estimator(X, kernel='tophat', **kwargs), X)
+
+    def kde_logarithmic_tophat(self, X: np.ndarray, **kwargs) -> np.ndarray:
+        """
+
+        Parameters
+        ----------
+        X
+        kwargs
+
+        Returns
+        -------
+
+        """
+
+        _densities = tu.evaluate_kde_estimator(tu.fit_single_kde_estimator(X, kernel='tophat', **kwargs), X, False)
+
+        # quasi - densities shift
+        return _densities + np.abs(np.min((0.0, np.min(_densities))))
+
+    def kde_logarithmic_knn(self, X: np.ndarray, **kwargs) -> np.ndarray:
+        """
+
+        Parameters
+        ----------
+        X
+        kwargs
+
+        Returns
+        -------
+
+        """
+        # -- constants --
+        _allowed_algorithms = {'BallTree', 'NearestNeighbors'}
+
+        # -- defaults --
+        _algorithm = kwargs.get('knn_algorithm', 'BallTree')
+        assert _algorithm in _allowed_algorithms, f'The algorithm name you provided: {_algorithm} is not among ' \
+            f'allowed knn algorithms: {_allowed_algorithms}'
+
+        _log_regularizer = kwargs.get('log_regularizer', 0.0)
+
+        _leaf_size = kwargs.get('leaf_size', 6)
+
+        _n_neighbors = kwargs.get('knn_n_neighbors', 6)
+
+        # -- code --
+        if _algorithm == 'BallTree':
+            # create the local graph
+            _graph = BallTree(X, leaf_size=_leaf_size)
+
+        elif _algorithm == 'NearestNeighbors':
+            # create the local graph
+            _graph = NearestNeighbors(n_neighbors=_n_neighbors, leaf_size=_leaf_size,
+                                      algorithm='ball_tree', p=2, n_jobs=os.cpu_count() - 1)
+            # fit graph
+            _graph.fit(X)
+
+            # define the query function, so to be consistent with other functions
+            _graph.query = lambda X, k: _graph.kneighbors(X=X, n_neighbors=k)
+
+        else:
+            raise ValueError('Something horrible has happened, contact the project owner!')
+
+
+
+    '''
+    M A I N  F U N C T I O N S
+    '''
+    def densities(self, X: np.ndarray) -> Dict[str, Iterator[np.ndarray]]:
+        """
+        Parameters
+        ----------
+        X: np.ndarray
+
+        Returns
+        -------
+
+        Notes
+        -----
+        - every Iterator under key, is part of itertools.repeat, so its infinite iterator over
+        the np.ndarrays
+
+        """
+
+        return reduce(lambda d, key_val: {**d, **{key_val[0]: repeat(self.__dict__[key_val[0]](X, **key_val[1]))}},
+                      self._density_estimators.items(), {})
 
 
 class SimplicalComplex:
@@ -272,6 +502,7 @@ class VietorisRipsComplex(SimplicalComplex):
 
         """
         if self._cliques is None:
+            tw.operation_might_take_long_to_finish('generate_vietoris_rips_complex')
 
             self._cliques = np.ndarray(list(nx.find_cliques(self.network)))
 
@@ -321,6 +552,26 @@ class VietorisRipsComplex(SimplicalComplex):
                 if dist and dist < epsilon:
                     g.add_edge(pair[0][1], pair[1][1])
         return g
+
+    def print_complex(self):
+        """
+
+        Returns
+        -------
+
+        """
+        self.generate_vietoris_rips_complex()
+
+        print(f'The Vietoris-Rips complex is: {self._cliques}')
+
+
+
+class Tomato:
+    """
+    <ADD DOCSTRING>
+    """
+    def __init__(self):
+        pass
 
 
 
