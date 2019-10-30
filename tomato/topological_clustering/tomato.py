@@ -38,8 +38,12 @@ class DensityEstimators:
 
     Attributes
     ----------
-    density_estimators: Tuple[str]
-        is a tuple of restricted strings. The restricted string might have the following values:
+    density_estimators: Union[Dict[str, dict], None]
+        if None, then we do not want to prepare any `bulk store` (expalined later),
+        then the aim of this class is to use particular density estimators on will
+
+        if it is dictionary of restricted strings (keys) with values being the dictionaries of fitting hyperparameters.
+        The restricted string might have the following values:
         - `kde_gauss_grid_search`
         - `kde_gauss_logarithmic_gauss_grid_search`
         - `kde_tophat`
@@ -66,9 +70,10 @@ class DensityEstimators:
                                    'kde_tophat', 'kde_logarithmic_tophat', 'kde_logarithmic_knn'}
 
     # -- constructor --
-    def __init__(self, density_estimators: Dict[str, dict]):
+    def __init__(self, density_estimators: Union[Dict[str, dict], None] = None):
 
         self._density_estimators = None
+        self._densities_store = None
 
         # @property handling
         self.__density_estimators = density_estimators
@@ -77,6 +82,38 @@ class DensityEstimators:
     '''
     HELPER FUNCTIONS
     '''
+    @property
+    def densities_store(self) -> Union[Dict[str, Iterator[np.ndarray]], None]:
+        """
+
+        Returns
+        -------
+
+        """
+        if self._densities_store is None:
+            tw.warn_user_about_empty_densities_store()
+
+        return self._densities_store
+
+    @densities_store.setter
+    def densities_store(self, densities_store: Union[Dict[str, Iterator[np.ndarray]], None]):
+        """
+
+        Parameters
+        ----------
+        densities_store
+
+        Returns
+        -------
+
+        """
+        assert isinstance(densities_store, (dict, None)), f'The value of `densities_store` is neither `dict` nor `None`!'
+
+        if densities_store is None:
+            tw.warn_user_about_empty_densities_store()
+
+        self._densities_store = densities_store
+
     @property
     def __density_estimator(self) -> Union[Dict[str, dict], None]:
         """
@@ -88,7 +125,7 @@ class DensityEstimators:
         return self._density_estimators
 
     @__density_estimator.setter
-    def __density_estimator(self, density_estimators: Dict[str, dict]):
+    def __density_estimator(self, density_estimators: Union[Dict[str, dict], None]):
         """
 
         Parameters
@@ -99,14 +136,21 @@ class DensityEstimators:
         -------
 
         """
-        assert isinstance(density_estimators, dict)
+        assert isinstance(density_estimators, (dict, None))
 
-        _check_set = set(density_estimators).difference(DensityEstimators._allowed_density_estimators)
-        assert not _check_set, f'The following names in `density_estimators` ' \
-            f'are not allowed: {_check_set}!'
+        if density_estimators is None:
+            self._density_estimators = None
 
-        self._density_estimators = density_estimators
+        else:
+            _check_set = set(density_estimators).difference(DensityEstimators._allowed_density_estimators)
+            assert not _check_set, f'The following names in `density_estimators` ' \
+                f'are not allowed: {_check_set}!'
 
+            self._density_estimators = density_estimators
+
+    '''
+    M A I N  F U N C T I O N S
+    '''
     def kde_gauss_grid_search(self, X: np.ndarray, **kwargs) -> np.ndarray:
         """This defines one particular Morse function.
 
@@ -209,6 +253,7 @@ class DensityEstimators:
 
         # -- defaults --
         _algorithm = kwargs.get('knn_algorithm', 'BallTree')
+
         assert _algorithm in _allowed_algorithms, f'The algorithm name you provided: {_algorithm} is not among ' \
             f'allowed knn algorithms: {_allowed_algorithms}'
 
@@ -236,19 +281,30 @@ class DensityEstimators:
         else:
             raise ValueError('Something horrible has happened, contact the project owner!')
 
+        # -- functions --
+        def _log_density_estimator(in_vector: np.ndarray, k: int = _n_neighbors) -> float:
+            return np.log(k) - np.log(X.shape[0]) - \
+                      X.shape[1] * np.log(_log_regularizer + _graph.query(in_vector, k=k)[0][0][-1])
 
+        # -- code --
 
-    '''
-    M A I N  F U N C T I O N S
-    '''
-    def densities(self, X: np.ndarray) -> Dict[str, Iterator[np.ndarray]]:
-        """
+        # it might happen that the `_log_density_estimator` is negative, so you must shift it
+        _densities = np.array(list(map(lambda ind: _log_density_estimator(X[ind:ind+1]), range(X.shape[0]))))
+
+        return _densities + np.abs(np.min((0.0, np.min(_densities))))
+
+    def generate_full_density_store(self, X: np.ndarray):
+        """This creates an infinite `bulk store` of densities. Note, all the densities are
+        at already evaluated once.
+
         Parameters
         ----------
         X: np.ndarray
 
         Returns
         -------
+        dictionary
+            it has structure: {'density_alg_name': repeat(density_algorithm(**kwargs)), ...}
 
         Notes
         -----
@@ -256,9 +312,10 @@ class DensityEstimators:
         the np.ndarrays
 
         """
-
-        return reduce(lambda d, key_val: {**d, **{key_val[0]: repeat(self.__dict__[key_val[0]](X, **key_val[1]))}},
+        self.densities_store = reduce(lambda d, key_val:\
+                          {**d, **{key_val[0]: repeat(DensityEstimators.__dict__[key_val[0]](self, X, **key_val[1]))}},
                       self._density_estimators.items(), {})
+
 
 
 class SimplicalComplex:
@@ -570,10 +627,43 @@ class Tomato:
     """
     <ADD DOCSTRING>
     """
-    def __init__(self):
-        pass
+    def __init__(self, X: np.ndarray, density_estimator: DensityEstimators,
+                 X_metadata: Union[np.ndarray, None] = None, **kwargs):
 
+        self._density_estimators = None
+        self._X = None
 
+        # @property handling of the correctness of `density_estimator`
+        self.__density_estimator = density_estimator
+
+    '''
+    HELPER FUNCTIONS
+    '''
+    @property
+    def __density_estimator(self) -> Union[DensityEstimators, None]:
+        """
+
+        Returns
+        -------
+
+        """
+        return self._density_estimators
+
+    @__density_estimator.setter
+    def __density_estimator(self, density_estimators: DensityEstimators):
+        """
+
+        Parameters
+        ----------
+        density_estimators: DensityEstimators
+
+        """
+        assert isinstance(density_estimators, DensityEstimators), 'The value in `density_estimator` must be of the ' \
+                                                                  'type `DensityEstimators`!'
+        assert density_estimators.densities_store is not None, 'The `densities_store` in instance of ' \
+                                                               '`DensityEstimators` can not be `None`!'
+
+        self._density_estimators = density_estimators
 
 
 
