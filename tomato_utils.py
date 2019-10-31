@@ -130,7 +130,7 @@ C L A S S E S
 '''
 
 
-class Simplicial_complex():
+class SimplicialComplex():
     """This class implements simple realization of `Simplical complex`
     """
 
@@ -207,7 +207,7 @@ class Simplicial_complex():
         return filter(lambda face: len(face) == dim+1, self.face_set)
 
 
-class Vietoris_Rips_complex(Simplicial_complex):
+class VietorisRipsComplex(SimplicialComplex):
     """Simple implemntation of the Vietoris_Rips_complex
     """
 
