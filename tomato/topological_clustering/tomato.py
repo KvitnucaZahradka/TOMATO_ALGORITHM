@@ -15,7 +15,7 @@ import tomato_utils as tu
 import tomato_warnings as tw
 
 from itertools import repeat, tee
-from typing import Iterator, Union, Dict, Callable, Tuple
+from typing import Iterator, Union, Dict, Callable, Tuple, Any
 
 from functools import reduce
 
@@ -341,6 +341,7 @@ class Tomato:
         self._density_estimator = None
         self._X_metadata = None
         self._tilde_f = None
+        self._num_neighbors = None
 
         # this attribute will be eventually used during the `fit` procedure
         self._union_find: Union[tu.UnionFind, None] = None
@@ -464,6 +465,58 @@ class Tomato:
 
         self._density_estimator = density_estimator
 
+    @property
+    def __graph_type(self) -> Union[str, None]:
+        """
+
+        Returns
+        -------
+
+        """
+        return self._graph_type
+
+    @__graph_type.setter
+    def __graph_type(self, graph_type: str):
+        """
+
+        Parameters
+        ----------
+        graph_type: str
+
+        Returns
+        -------
+
+        """
+        assert isinstance(graph_type, str), f'The `graph_type` parameter is not of string type!'
+        self._graph_type = graph_type
+
+    @property
+    def __graph(self) -> Union[tu.VietorisRipsComplex, BallTree, NearestNeighbors, None]:
+        """
+
+        Returns
+        -------
+
+        """
+        return self._graph
+
+    @__graph.setter
+    def __graph(self, graph_instance: Union[tu.VietorisRipsComplex, BallTree, NearestNeighbors]):
+        """
+
+        Parameters
+        ----------
+        graph_instance
+
+        Returns
+        -------
+
+        """
+        assert(graph_instance, (tu.VietorisRipsComplex, BallTree, NearestNeighbors)), f'The value of `graph_instance` ' \
+            f'does not have correct type!'
+
+        self._graph = graph_instance
+
     def _cluster_like_tomato(self, cluster_index: int) -> tuple:
         """
 
@@ -486,9 +539,133 @@ class Tomato:
 
         return _ord_cluster_data, _ord_cluster_metadata
 
+    '''
+    M A I N  F U N C T I O N S
+    '''
+    @property
+    def all_attributes(self) -> Dict[str, Any]:
+        """This function returns all attributes of the `Tomato` instance.
 
+        Returns
+        -------
 
+        """
+        return {'morse_function': self._tilde_f,
+                'ordered_data': self._ordered_data,
+                'union_find': self._union_find,
+                'persistence_data': self._persistence_data,
+                'locality_graph_name': self._graph_type,
+                'locality_graph': self._graph}
 
+    @property
+    def morse_function(self) -> Tuple[str, np.ndarray]:
+        return 'morse_function', self._tilde_f
+
+    @property
+    def ordered_data(self) -> Tuple[str, np.ndarray]:
+        return 'ordered_data', self._ordered_data
+
+    @property
+    def union_find(self) -> Tuple[str, tu.Union_find]:
+        return 'union_find', self._union_find
+
+    @property
+    def persistence_data(self) -> Tuple[str, dict]:
+        return 'persistence_data', self._persistence_data
+
+    @property
+    def locality_graph_name(self) -> Tuple[str, str]:
+        return 'locality_graph_name', self._graph_type
+
+    @property
+    def locality_graph(self) -> Tuple[str, Any]:
+        return 'locality_graph', self._graph
+
+    def fit_vietoris_rips_graph(self, epsilon: float):
+        """This function fits data with the Vietris-Rips complex.
+
+        Parameters
+        ----------
+        epsilon: float
+
+        Examples
+        --------
+
+        """
+        # remember that you used the `vietoris-rips` complex
+        # handled by @property
+        self.__graph_type = 'vietoris_rips_complex'
+
+        self.__graph = tu.VietorisRipsComplex(self._ordered_data, epsilon=epsilon,
+                                              labels=np.array(list(range(self._ordered_data.shape[0]))))
+
+    def fit_knn_graph(self, n: int, **kwargs):
+        """This function calculates the knn-graph for the data.
+
+        Returns
+        -------
+        n: int
+            is the number of neighbors we will consider for given data point.
+
+        **kwargs
+            optional parameter dictionary. User can specify:
+            - `leaf_size`: int; -- default -- 6; is a positive integer that determines the shape of the search
+            `BallTree` tree.
+            - `algorithm`: str; -- default -- `BallTree`; is a string that determines what algorithm to be used to
+            calculate `knn`. Possibilities are: {`BallTree`, `NearestNeighbors`}
+
+        Raises
+        ------
+        ValueError
+
+        Notes
+        -----
+        - note, the `NearestNeighbors` tend to be a bit slower than the `BallTree`.
+
+        """
+        _algorithm = kwargs.get('algorithm', 'BallTree')
+        _leaf_size = kwargs.get('leaf_size', 6)
+
+        self.__graph_type = 'knn_graph'
+        self._num_neighbors = n
+
+        if _algorithm == 'BallTree':
+            self.__graph = BallTree(self._ordered_data, leaf_size=_leaf_size)
+
+        elif _algorithm == 'NearestNeighbors':
+            self.__graph = NearestNeighbors(n_neighbors=n, leaf_size=_leaf_size, algorithm='ball_tree', p=2,
+                                            n_jobs=os.cpu_count() - 1)
+            self._graph.fit(self._ordered_data)
+
+            # add the query function so to be consistent with the `self._graph` api
+            self._graph.query = lambda X, k: self._graph.kneighbors(X=X, n_neighbors=k)
+
+        else:
+            raise ValueError(f'Requested algorithm: {_algorithm} is not supported.')
+
+    def fit(self, tau: float, verbose: bool = False):
+        """This function implements actual `ToMATo` algorithm fitting.
+
+        Parameters
+        ----------
+        tau: float
+
+        verbose: bool
+            -- default -- True
+
+        Returns
+        -------
+
+        """
+
+        # -- step 0 -- create union-find data structure
+        _union_find = tu.Union_find(root_weights=self._tilde_f)
+
+        # -- step 1 -- define container for persistence data, i.e. here we will keep the information
+        # when the cluster is born (key) and when the cluster die (value).
+        _persistence_data = {}
+
+        raise NotImplementedError
 
 
 
