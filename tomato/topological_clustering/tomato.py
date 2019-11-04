@@ -6,6 +6,7 @@ Created on 2019 October 26 20:37:09 (EST)
 
 @author: KanExtension
 """
+#from __future__ import annotations
 
 import os
 import numpy as np
@@ -14,6 +15,7 @@ from sklearn.neighbors import BallTree, NearestNeighbors
 import tomato_utils as tu
 import tomato_warnings as tw
 
+from collections import Counter
 from itertools import repeat, tee
 from typing import Iterator, Union, Dict, Callable, Tuple, Any
 
@@ -366,6 +368,22 @@ class Tomato:
     HELPER FUNCTIONS
     '''
     @property
+    def __persistence_data(self) -> Union[dict, None]:
+        return self._persistence_data
+
+    @__persistence_data.setter
+    def __persistence_data(self, persistence_data: dict):
+        self._persistence_data = persistence_data
+
+    @property
+    def __union_find(self) -> Union[tu.Union_find, None]:
+        return self._union_find
+
+    @__union_find.setter
+    def __union_find(self, union_find: tu.Union_find):
+        self._union_find = union_find
+
+    @property
     def __ordered_data(self) -> np.ndarray:
         """
 
@@ -643,7 +661,7 @@ class Tomato:
         else:
             raise ValueError(f'Requested algorithm: {_algorithm} is not supported.')
 
-    def fit(self, tau: float, verbose: bool = False):
+    def fit(self, tau: float, verbose: bool = False) -> 'Tomato':
         """This function implements actual `ToMATo` algorithm fitting.
 
         Parameters
@@ -655,6 +673,7 @@ class Tomato:
 
         Returns
         -------
+        Tomato instance
 
         """
 
@@ -665,7 +684,101 @@ class Tomato:
         # when the cluster is born (key) and when the cluster die (value).
         _persistence_data = {}
 
+        if verbose:
+            print(f'Using: {self._graph} graph.')
+
+        for idx in range(len(self._tilde_f)):
+            if verbose:
+                print(f'Calculating index: {idx}.')
+
+            # return the neighborhood of indices that have higher densities than the current idx:
+            # i.e. the pseudo-gradients; i.e. they have lower indices than the current index
+            if self._graph_type == 'vietoris_rips_complex':
+
+                # create `neighborhood`: it stores the neighborhood of `idx`
+                _neighborhood = np.array(list(filter(lambda ind: ind < idx, self._graph.network[idx])))
+
+            elif self._graph_type == 'knn_complex':
+
+                _dist, _ind = self._graph.query(self._ordered_data[idx:idx+1], k=self._num_neighbors)
+
+                _neighborhood = np.array(list(filter(lambda ind: ind < idx, _ind[0])))
+
+            else:
+                raise NotImplementedError(f'The graph provided by user: {self._graph_type} is not yet supported.')
+
+            # -- step 2 -- for persistentce diagram you need to know the start peaks
+            _start_peaks = set(_union_find._object_id_to_parent_id.values())
+
+            if _neighborhood.size > 0:
+
+                # -- step 3 -- cluster is born
+                _pseudogradient = _neighborhood[np.argmax(self._tilde_f[_neighborhood])]
+
+                # find the root for `_pseudogradient`
+                _parent = _union_find.find(_pseudogradient)
+
+                # do the union of idx and _parent
+                _union_find.union(_parent, idx)
+
+                for j in _neighborhood:
+
+                    # find root of j
+                    _parent_j = _union_find.find(j)
+
+                    # this condition decides to what root current node belongs
+                    _parents_root_densities = [self._tilde_f[_parent], self._tilde_f[_parent_j]]
+
+                    # what this means?
+                    # this means, that parent densities are different and you are mergining only if the
+                    # persistence is big enough.
+                    if _parent != _parent_j and min(_parents_root_densities) < self._tilde_f[idx] + tau:
+
+                        # only in this case we conglomerate `_parent_j` and `_parent`
+                        # this means that the `_parent` density dies
+                        _union_find.union(_parent_j, _parent)
+
+                        # update the `_parent`
+                        _parent = _union_find.find(_parent_j)
+            else:
+                # if neighborhood is empty :: add `idx` to UnionFind data structure
+                _union_find.insert_objects([idx])
+
+            # -- step 4 -- for the persistent diagram, you need peaks that survived
+            _stop_peaks = set(_union_find._object_id_to_parent_id.values())
+
+            # -- step 5 -- calculate what peaks has been killed in the process
+            _killed = _start_peaks.difference(_stop_peaks)
+
+            # -- step 6 -- update the persistence data
+            _persistence_data = {**_persistence_data, **{self._tilde_f[peak]: self._tilde_f[idx] for peak in _killed}}
+
+        # -- step 7 -- final persistence data update, you need to find out which peaks survived the merging,
+        # i.e. totally persist
+        _persistence_data = {**_persistence_data, **{self._tilde_f[peak]: 0.0 for peak in
+                                                     set(_union_find._object_id_to_parent_id.values())}}
+
+        # -- step 8 -- update the `_union_find` attribute
+        self.__union_find = _union_find
+
+        # -- step 9 -- update the `persistence_data` attribute
+        self.__persistence_data = _persistence_data
+
+        return self
+
+    def plot_persistence_diagram(self, **kwargs):
         raise NotImplementedError
+
+    def return_cluster_counts(self) -> Counter:
+        raise NotImplementedError
+
+    def return_clusters(self) -> dict:
+        raise NotImplementedError
+
+
+
+
+
 
 
 
