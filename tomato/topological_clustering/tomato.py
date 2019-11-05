@@ -21,6 +21,8 @@ from typing import Iterator, Union, Dict, Callable, Tuple, Any
 
 from functools import reduce
 
+import matplotlib.pyplot as plt
+
 
 '''
 
@@ -334,13 +336,14 @@ class Tomato:
     """
     <ADD DOCSTRING>
     """
-    def __init__(self, X: np.ndarray, density_estimator: np.ndarray, X_metadata: Union[np.ndarray, None] = None,
-                 **kwargs):
+    def __init__(self, X: np.ndarray, density_estimator: np.ndarray, density_estimator_name: str,
+                 X_metadata: Union[np.ndarray, None] = None, **kwargs):
 
         _bool_filter = kwargs.get('bool_density_filter', lambda x: True)
 
         self._ordered_data = None
         self._density_estimator = None
+        self._density_estimator_name = None
         self._X_metadata = None
         self._tilde_f = None
         self._num_neighbors = None
@@ -360,6 +363,7 @@ class Tomato:
         # @property handling of the correctness of `density_estimator`
         self.__X_metadata = X_metadata
         self.__density_estimator = density_estimator
+        self.__density_estimator_name = density_estimator_name
 
         # this sets up the correct `_ordered_data`, `_density_estimator` and `_X_metadata`
         self.__ordered_data = X, _bool_filter
@@ -367,6 +371,33 @@ class Tomato:
     '''
     HELPER FUNCTIONS
     '''
+    @property
+    def __density_estimator_name(self) -> Union[str, None]:
+        """
+
+        Returns
+        -------
+
+        """
+        return self._density_estimator_name
+
+    @__density_estimator_name.setter
+    def __density_estimator_name(self, density_estimator_name: str):
+        """
+
+        Parameters
+        ----------
+        density_estimator_name
+
+        Returns
+        -------
+
+        """
+        assert isinstance(density_estimator_name, str), f'The name you provided: {density_estimator_name} ' \
+            f'is not of string type.'
+
+        self._density_estimator_name = density_estimator_name
+
     @property
     def __persistence_data(self) -> Union[dict, None]:
         return self._persistence_data
@@ -767,13 +798,91 @@ class Tomato:
         return self
 
     def plot_persistence_diagram(self, **kwargs):
-        raise NotImplementedError
+        """
+        ADD DOCSTRING
+
+        Parameters
+        ----------
+        **kwargs
+            - figure_size: Tuple[float]
+                -- default -- (12.0, 8.0); is a tuple (figure_width: float, figure_height: float)
+
+            - save: bool
+                -- default -- False; whether we want to save the final plotting of persistence diagram
+
+            - name_of_image: str
+                -- default -- 'persistent_diagram.png'
+
+            - path_to_save_image: str
+                -- default -- '';
+
+            - image_resolution: int
+                -- default -- 300, what is the resolution of the saved image of the persistent diagram
+
+
+        Returns
+        -------
+
+        """
+        # -- step 0 -- fit the diagram with tau = \infty
+        _ = self.fit(tau=np.inf)
+
+        # -- step 1 -- gat the figsize & set up the plotting object
+        _figsize = kwargs.get('figure_size', (12.0, 8.0))
+
+        # set up the figure object
+        fig = plt.figure(figsize=_figsize)
+
+        # set up some plotting params
+        plt.rcParams["figure.figsize"] = _figsize
+
+        # -- step 2 -- plot the `_persistence_data`, i.e. plot the birthdays and deathdays for each cluster
+        # along the scan
+        for start, stop in self._persistence_data.items():
+            plt.plot((start, start), (start, stop), 'rx--', linewidth=0.9)
+
+        # -- step 3 -- handle axis
+        _axis_label = f'Morse function values: {self._density_estimator_name}.'
+        plt.ylabel(_axis_label, fontsize=12)
+        plt.xlabel(_axis_label, fontsize=12)
+        plt.title(r'Persistent diagram (plotted at $\tau = \infty$).', fontsize=18)
+        plt.show()
+
+        # -- step 4 -- save, if necessary
+        if kwargs.get('save', False):
+
+            _name_to_save = kwargs.get('name_of_image', 'persistent_diagram.png')
+            _path_to_save = kwargs.get('path_to_save_image', '')
+
+            _full_path = os.path.join(_path_to_save, _name_to_save)
+
+            fig.savefig(_full_path, dpi=kwargs.get('image_resolution', 300))
 
     def return_cluster_counts(self) -> Counter:
-        raise NotImplementedError
+        """
+        ADD DOCSTRING
+
+        Returns
+        -------
+        Counter
+        """
+        return Counter(self._union_find._object_id_to_parent_id.values())
 
     def return_clusters(self) -> dict:
-        raise NotImplementedError
+        """
+
+        Returns
+        -------
+        dict
+
+        """
+        _cluster_dictionary = {}
+
+        for _cluster_index in set(self._union_find._object_id_to_parent_id.values()):
+            _cluster_dictionary[_cluster_index] = self._cluster_like_tomato(cluster_index=_cluster_index)
+
+        return _cluster_dictionary
+
 
 
 
