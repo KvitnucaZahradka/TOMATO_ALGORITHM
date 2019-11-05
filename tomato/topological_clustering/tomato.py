@@ -407,11 +407,11 @@ class Tomato:
         self._persistence_data = persistence_data
 
     @property
-    def __union_find(self) -> Union[tu.Union_find, None]:
+    def __union_find(self) -> Union[tu.UnionFind, None]:
         return self._union_find
 
     @__union_find.setter
-    def __union_find(self, union_find: tu.Union_find):
+    def __union_find(self, union_find: tu.UnionFind):
         self._union_find = union_find
 
     @property
@@ -615,7 +615,7 @@ class Tomato:
         return 'ordered_data', self._ordered_data
 
     @property
-    def union_find(self) -> Tuple[str, tu.Union_find]:
+    def union_find(self) -> Tuple[str, tu.UnionFind]:
         return 'union_find', self._union_find
 
     @property
@@ -709,7 +709,7 @@ class Tomato:
         """
 
         # -- step 0 -- create union-find data structure
-        _union_find = tu.Union_find(root_weights=self._tilde_f)
+        _union_find = tu.UnionFind(root_weights=self._tilde_f)
 
         # -- step 1 -- define container for persistence data, i.e. here we will keep the information
         # when the cluster is born (key) and when the cluster die (value).
