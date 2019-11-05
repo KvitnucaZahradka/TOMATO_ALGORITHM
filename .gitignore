@@ -2,3 +2,6 @@
 ._*
 __pycache__/
 Icon
+*.ipynb*
+*.DS_Store.DS_Store
+.DS_Store

@@ -74,7 +74,7 @@ class DensityEstimators:
         self._densities_store = None
 
         # @property handling
-        self.__density_estimators = density_estimators
+        self.__density_estimator = density_estimators
 
 
     '''
@@ -105,7 +105,7 @@ class DensityEstimators:
         -------
 
         """
-        assert isinstance(densities_store, (dict, None)), f'The value of `densities_store` is neither `dict` nor `None`!'
+        assert isinstance(densities_store, (dict, type(None))), f'The value of `densities_store` is neither `dict` nor `None`!'
 
         if densities_store is None:
             tw.warn_user_about_empty_densities_store()
@@ -134,7 +134,7 @@ class DensityEstimators:
         -------
 
         """
-        assert isinstance(density_estimators, (dict, None))
+        assert isinstance(density_estimators, (dict, type(None)))
 
         if density_estimators is None:
             self._density_estimators = None
@@ -442,7 +442,7 @@ class Tomato:
             # apply filter with respect to density
             _data_store = filter(lambda x: _bool_filter(x[-1]), _data_store)
 
-            _data_store = sorted(_data_store, key=lambda x: -x[-1])
+            _data_store = tee(sorted(_data_store, key=lambda x: -x[-1]))
 
         else:
             _data_store = zip(_X, self._X_metadata, self._density_estimator)
@@ -485,7 +485,7 @@ class Tomato:
         -------
 
         """
-        assert isinstance(X_metadata, (np.ndarray, None)), f'The value of `X_metadata` must be either `np.ndarray`' \
+        assert isinstance(X_metadata, (np.ndarray, type(None))), f'The value of `X_metadata` must be either `np.ndarray`' \
             f' or `None`'
 
         self._X_metadata = X_metadata
@@ -675,7 +675,7 @@ class Tomato:
         _algorithm = kwargs.get('algorithm', 'BallTree')
         _leaf_size = kwargs.get('leaf_size', 6)
 
-        self.__graph_type = 'knn_graph'
+        self.__graph_type = 'knn_complex'
         self._num_neighbors = n
 
         if _algorithm == 'BallTree':

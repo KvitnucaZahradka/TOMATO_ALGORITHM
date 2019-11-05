@@ -164,7 +164,7 @@ class UnionFind:
     def object_id_to_parent_id(self) -> dict:
         return self._object_id_to_parent_id
 
-    def _insert_objects(self, objects: Iterator['object']):
+    def insert_objects(self, objects: Iterator['object']):
         """
 
         Parameters
@@ -369,7 +369,7 @@ class VietorisRipsComplex(SimplicalComplex):
     """
 
     def __init__(self, points: np.ndarray, epsilon: float, labels: Union[np.ndarray, None],
-                 distance_function: Union[Callable[[List[float], List[float]], float], None]):
+                 distance_function: Union[Callable[[List[float], List[float]], float], None] = None):
 
         # initialize the superclass
         super().__init__()
@@ -496,7 +496,7 @@ class VietorisRipsComplex(SimplicalComplex):
         -------
 
         """
-        assert isinstance(distance_function, (None, Callable)),\
+        assert isinstance(distance_function, (type(None), Callable)),\
             f'The `distance_function` parameter: {distance_function} must be either None or Callable.'
 
         if distance_function is None:
@@ -539,7 +539,7 @@ class VietorisRipsComplex(SimplicalComplex):
             distance of any two members must be computable via `distfcn` function passed as argument
 
         labels: np.ndarray
-            is the array of `lables` associated with each data point in `points`
+            is the array of `labels` associated with each data point in `points`
 
         epsilon: float
             is a positive `float`, i.e. the distance, if two data points are under that distance, they are connected
