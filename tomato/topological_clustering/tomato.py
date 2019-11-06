@@ -12,8 +12,8 @@ import os
 import numpy as np
 from sklearn.neighbors import BallTree, NearestNeighbors
 
-import tomato_utils as tu
-import tomato_warnings as tw
+import topological_clustering.tomato_utils as tu
+import topological_clustering.tomato_warnings as tw
 
 from collections import Counter
 from itertools import repeat, tee
@@ -23,6 +23,8 @@ from functools import reduce
 
 import matplotlib.pyplot as plt
 
+
+__all__ = ["DensityEstimators", "Tomato"]
 
 '''
 

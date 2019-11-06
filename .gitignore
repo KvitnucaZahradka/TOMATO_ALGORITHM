@@ -5,3 +5,14 @@ Icon
 *.ipynb*
 *.DS_Store.DS_Store
 .DS_Store
+
+# Compiled python modules.
+*.pyc
+
+# Setuptools distribution folder.
+tomato/dist/*
+
+# Python egg metadata, regenerated from source files by setuptools.
+tomato/*.egg-info
+
+tomato/build/*

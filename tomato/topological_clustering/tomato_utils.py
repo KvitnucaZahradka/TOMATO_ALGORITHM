@@ -8,24 +8,17 @@ Created on 2019 October 26 20:37:25 (EST)
 """
 
 import numpy as np
-
 from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import KernelDensity
 from sklearn.datasets import make_blobs, make_moons, make_circles
-
-from typing import Iterator, Tuple, Set, Union, Callable, List, Dict
-from itertools import combinations
-
+from typing import Iterator, Tuple, Union, Callable, List
 from itertools import tee
-
 import networkx as nx
-import tomato_warnings as tw
-
+import topological_clustering.tomato_warnings as tw
 from itertools import product, combinations
-from collections import Counter
-
 from scipy.spatial import distance
-import matplotlib.pyplot as plt
+
+__all__ = ["ClusterGenerator"]
 
 
 '''
